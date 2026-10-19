@@ -25,17 +25,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install and Start Ollama
+      - name: Install and Start Ollama Server
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
-          ollama serve &
-          sleep 5
+          nohup ollama serve > ollama.log 2>&1 &
+          for i in {1..30}; do
+            if curl -s http://localhost:11434/api/tags > /dev/null; then
+              echo "Ollama is ready!"
+              break
+            fi
+            echo "Waiting for Ollama to initialize..."
+            sleep 2
+          done
 
-      - name: Pull Required Models
+      - name: Pull CI Models
         run: |
           ollama pull nomic-embed-text
-          ollama pull qwen3:8b
+          ollama pull qwen2.5:0.5b
 
       - name: Run RAG Evaluation Harness (Quality Gate)
         run: |
-          python -u evaluate.py --limit 3
+          python -u evaluate.py --limit 3 --model qwen2.5:0.5b
+
+      - name: Print Ollama Logs on Failure
+        if: failure()
+        run: |
+          if [ -f ollama.log ]; then
+            cat ollama.log
+          fi

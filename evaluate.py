@@ -20,14 +20,14 @@ from rag_core import (
 )
 from prompts import JUDGE_FAITHFULNESS_TEMPLATE, JUDGE_RELEVANCY_TEMPLATE
 
-def judge_metric(prompt_template, **kwargs):
+def judge_metric(prompt_template, model="qwen3:8b", **kwargs):
     """Asks the LLM to act as an evaluator and return a numerical score (0.0 to 1.0) with an explanation."""
     prompt = prompt_template.format(**kwargs)
     try:
         response = requests.post(
             "http://localhost:11434/api/generate", 
             json={
-                "model": "qwen3:8b",
+                "model": model,
                 "prompt": prompt,
                 "stream": False,
                 "format": "json",
@@ -49,10 +49,11 @@ def judge_metric(prompt_template, **kwargs):
 def main():
     parser = argparse.ArgumentParser(description="RAG Pipeline Evaluation Harness")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of test questions to evaluate (e.g. --limit 3)")
+    parser.add_argument("--model", type=str, default="qwen3:8b", help="Model to use for generation and evaluation (default: qwen3:8b)")
     args = parser.parse_args()
 
     print("=" * 60, flush=True)
-    print("RAG Evaluation Harness -- LLM as a Judge", flush=True)
+    print(f"RAG Evaluation Harness -- LLM as a Judge (Model: {args.model})", flush=True)
     print("=" * 60, flush=True)
 
     # 1. Load the Golden Dataset
@@ -90,13 +91,14 @@ def main():
         
         # Generate the answer
         print("  Generating answer...", flush=True)
-        answer = generate_answer(question, retrieved_chunks)
+        answer = generate_answer(question, retrieved_chunks, model=args.model)
         print(f"  Answer: {answer.strip()}", flush=True)
 
         # Judge Faithfulness (No hallucinations)
         print("  Evaluating Faithfulness...", flush=True)
         faith_score, faith_reason = judge_metric(
             JUDGE_FAITHFULNESS_TEMPLATE, 
+            model=args.model,
             context=context_text, 
             answer=answer
         )
@@ -106,6 +108,7 @@ def main():
         print("  Evaluating Relevancy...", flush=True)
         rel_score, rel_reason = judge_metric(
             JUDGE_RELEVANCY_TEMPLATE, 
+            model=args.model,
             question=question, 
             answer=answer
         )

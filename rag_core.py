@@ -95,7 +95,7 @@ def hybrid_search(query, chunks, embeddings, bm25_index, top_k=3, k=60):
     return [chunks[i] for i in top_indices]
 
 # --- Step 5: LLM Generation ---
-def generate_answer(query, context_chunks):
+def generate_answer(query, context_chunks, model="qwen3:8b"):
     """Generates an answer using the LLM, restricting it to ONLY use the provided context chunks."""
     url = "http://localhost:11434/api/generate"
     context_text = "\n\n".join(context_chunks)
@@ -104,7 +104,7 @@ def generate_answer(query, context_chunks):
     prompt = RAG_PROMPT_TEMPLATE.format(context=context_text, query=query)
 
     response = requests.post(url, json={
-        "model": "qwen3:8b",
+        "model": model,
         "prompt": prompt,
         "stream": False,
         "options": {
