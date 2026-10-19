@@ -1,4 +1,11 @@
-from rag_core import load_pdf, chunk_text, get_embedding, search, generate_answer
+from rag_core import (
+    load_pdf, 
+    chunk_text, 
+    get_embedding, 
+    create_bm25_index, 
+    hybrid_search, 
+    generate_answer
+)
 
 def main():
     # 1. Setup Phase: Prepare the document database
@@ -13,8 +20,11 @@ def main():
     for chunk in chunks:
         embeddings.append(get_embedding(chunk))
         
+    print("4. Building BM25 keyword index...")
+    bm25_index = create_bm25_index(chunks)
+        
     # 2. Interactive Phase: Chat with the user
-    print("\nSystem Ready! Ask a question about TechFlow Solutions.")
+    print("\n✅ System Ready (Hybrid Search enabled)! Ask a question about TechFlow Solutions.")
     print("(Type 'quit' to exit)\n")
     
     while True:
@@ -22,9 +32,9 @@ def main():
         if query.lower() in ["quit", "exit"]:
             break
             
-        print("Searching...")
-        # Find the most relevant pieces of text for this specific question
-        relevant_chunks = search(query, chunks, embeddings)
+        print("Searching (Vectors + BM25)...")
+        # Find the most relevant pieces of text using Hybrid Search with RRF
+        relevant_chunks = hybrid_search(query, chunks, embeddings, bm25_index)
         
         print("Thinking...")
         # Generate a final answer using ONLY those relevant pieces

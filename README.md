@@ -1,54 +1,104 @@
-# RAG from Scratch (No Frameworks)
+# Production RAG from Scratch (No Frameworks)
 
-This project is a complete Retrieval-Augmented Generation (RAG) pipeline built from absolute first principles. It intentionally avoids frameworks like LangChain or LlamaIndex to demonstrate a deep, ground-up understanding of how AI search and retrieval systems actually work under the hood.
+A production-grade Retrieval-Augmented Generation (RAG) system built from absolute first principles. It intentionally avoids third-party orchestrators like LangChain or LlamaIndex to implement the foundational algorithms behind modern AI search, hybrid retrieval, and automated evaluation.
 
-## 🚀 Features
+---
 
-- **Custom PDF Parsing:** Extracts text directly from a test document.
-- **Manual Sliding-Window Chunking:** Splits text into overlapping semantic blocks to preserve context.
-- **Local Embeddings:** Converts text chunks into vector embeddings using `nomic-embed-text` via Ollama.
-- **Bare-Metal Vector Search:** Calculates cosine similarity by hand using `numpy` to rank and retrieve the most relevant chunks.
-- **Strict Grounding:** Uses custom prompt engineering to force the LLM to answer *only* from the retrieved context, effectively preventing hallucination.
-- **Observability:** Prints the exact chunks used for generation so the user can verify the retrieval step.
+## 🚀 Key Features
 
-## 📂 Project Structure
+### 1. Hybrid Search (Dense Vectors + Sparse BM25)
+* **Bare-Metal Vector Search:** Computes cosine similarity across dense embeddings generated locally by `nomic-embed-text` via Ollama.
+* **BM25 Keyword Search:** Uses the `rank_bm25` algorithm to match exact keywords, technical terms (e.g. `AES-256`), and product codes that vector embeddings can overlook.
+* **Reciprocal Rank Fusion (RRF):** Fuses ranking positions from both algorithms into a single balanced score using the industry standard formula:
+  $$\text{RRF Score} = \sum \frac{1}{60 + \text{rank}}$$
 
-This project follows a strict separation of concerns:
+### 2. Automated LLM-as-a-Judge Evaluation
+* **Golden Dataset (`eval_dataset.json`):** A curated test suite of reference questions, ground-truth answers, and source context excerpts.
+* **Faithfulness Metric (0.0 to 1.0):** Evaluates whether the generated answer contains any claims not supported by the retrieved context (hallucination detection).
+* **Answer Relevancy Metric (0.0 to 1.0):** Evaluates whether the answer directly and specifically answers the user's prompt without evasion or filler.
+* **Quality Gate:** Fails with exit code `1` if either metric drops below `0.80`.
 
-- `main.py` — The interactive chat loop and entry point.
-- `rag_core.py` — The engine (loading, chunking, embedding, cosine similarity, and API calls).
-- `prompts.py` — Isolated prompt templates for easy iteration.
-- `techflow_report.pdf` — A fictional, fact-dense company report used to test retrieval accuracy.
+### 3. CI/CD Quality Gate (GitHub Actions)
+* `.github/workflows/rag-eval.yml` runs automated regression evaluations on every `git push` or pull request to prevent regressions before merging.
 
-## 🛠️ Setup and Installation
+---
 
-1. **Prerequisites:** 
-   - Python 3.9+
-   - [Ollama](https://ollama.com/) installed and running locally.
+## 📂 Project Architecture
 
-2. **Pull Required Local Models:**
-   ```bash
-   ollama pull nomic-embed-text
-   ollama pull qwen3:8b
-   ```
-   *(Note: You can swap `qwen3:8b` for `llama3` or any other model in `rag_core.py`)*
+```text
+├── .github/workflows/
+│   └── rag-eval.yml         # GitHub Actions automated CI evaluation gate
+├── techflow_report.pdf      # Sample fact-dense enterprise report
+├── rag_core.py              # Core engine: loading, chunking, embeddings, BM25 & RRF
+├── prompts.py               # Grounded answer templates & Judge evaluation prompts
+├── main.py                  # Interactive CLI assistant with hybrid search
+├── evaluate.py              # Automated LLM-as-a-judge evaluation harness
+├── eval_dataset.json        # Golden benchmark dataset
+└── requirements.txt         # Dependencies (numpy, PyPDF2, requests, rank_bm25)
+```
 
-3. **Create a Virtual Environment & Install Dependencies:**
-   ```bash
-   python -m venv .venv
-   .\.venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+---
 
-4. **Run the Project:**
-   ```bash
-   python main.py
-   ```
+## 🛠️ Setup & Usage
 
-## 🧠 Why Build This?
+### 1. Prerequisites
+* Python 3.10+
+* [Ollama](https://ollama.com/) running locally.
 
-Many engineers glue together LangChain components without understanding the underlying mechanics. By building the entire pipeline from scratch, this project demonstrates:
-- How chunk size and overlap actually affect retrieval.
-- How vector math (cosine similarity) acts as a search engine.
-- How to separate the "Retrieval" failure modes from the "Generation" failure modes.
-- How to enforce strict LLM grounding.
+### 2. Pull Required Models
+```bash
+ollama pull nomic-embed-text
+ollama pull qwen3:8b
+```
+
+### 3. Install Dependencies
+```bash
+python -m venv .venv
+# Windows:
+.\.venv\Scripts\activate
+# Linux/macOS:
+# source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+### 4. Interactive Chat
+Run the interactive assistant:
+```bash
+python main.py
+```
+
+### 5. Run Automated Evaluation
+Run the LLM-as-a-Judge benchmark:
+```bash
+# Quick benchmark (first 3 questions)
+python -u evaluate.py --limit 3
+
+# Full evaluation suite (all questions)
+python -u evaluate.py
+```
+
+Sample output:
+```text
+============================================================
+EVALUATION SCOREBOARD
+============================================================
+#   | Faithfulness | Relevancy  | Question
+------------------------------------------------------------
+1   | 1.00         | 1.00       | Who founded TechFlow Solutions and ...
+2   | 1.00         | 1.00       | What was TechFlow's annual recurrin...
+3   | 1.00         | 1.00       | How much does the Starter plan for ...
+------------------------------------------------------------
+Average Faithfulness: 1.00 / 1.00
+Average Relevancy:    1.00 / 1.00
+============================================================
+
+[PASS] System meets production threshold (>= 0.80).
+```
+
+---
+
+## 🧠 What This Demonstrates
+1. **Understanding Under-the-Hood Mechanics:** No black-box frameworks; vector math, chunking strategies, and BM25 tokenization are transparently implemented.
+2. **Solving the Vector Blindspot:** Implementing Hybrid Search with Reciprocal Rank Fusion to combine semantic nuance with exact keyword precision.
+3. **Continuous Quality & Hallucination Prevention:** Measuring pipeline health mathematically with an automated LLM judge and CI gates.
